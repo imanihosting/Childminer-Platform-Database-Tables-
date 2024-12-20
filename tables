@@ -1,0 +1,157 @@
+
+#User Tables 
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('parent', 'childminder', 'super_admin') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+
+
+#Profile Tables 
+
+CREATE TABLE profiles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, -- Links to the users table
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    address TEXT,
+    city VARCHAR(255),
+    postal_code VARCHAR(20),
+    phone_number VARCHAR(20),
+    bio TEXT, -- A short description or biography
+    profile_photo_url VARCHAR(255), -- URL for profile photo/avatar
+    experience_years INT DEFAULT 0, -- For childminders
+    available_days JSON, -- Availability days for childminders (e.g., {"monday": true, "tuesday": false})
+    custom_availability JSON, -- Time slots or recurring availability
+    languages JSON, -- Languages spoken (e.g., ["English", "French"])
+    preferences JSON, -- Parent-specific preferences (e.g., {"gender": "female", "age_range": "25-40"})
+    is_verified BOOLEAN DEFAULT FALSE, -- Verification status
+    average_rating FLOAT DEFAULT 0.0, -- Childminder average rating
+    review_count INT DEFAULT 0, -- Number of reviews for childminders
+    emergency_contact VARCHAR(255), -- Optional emergency contact
+    subscription_active BOOLEAN DEFAULT TRUE, -- Whether the subscription is active
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+#Children Tables
+CREATE TABLE children (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL, -- Links to the users table
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255),
+    date_of_birth DATE NOT NULL, -- To calculate the child's age
+    special_needs BOOLEAN DEFAULT FALSE, -- Whether the child has special needs
+    medical_details JSON, -- Detailed medical or educational needs
+    notes TEXT, -- Additional information about the child
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+
+
+#Booking 
+
+CREATE TABLE bookings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL, -- References the parent (user)
+    childminder_id INT NOT NULL, -- References the childminder (user)
+    child_id INT NOT NULL, -- References the child being booked for
+    booking_date DATE NOT NULL, -- The date of the service
+    start_time TIME NOT NULL, -- Start time for the service
+    end_time TIME NOT NULL, -- End time for the service
+    status ENUM('pending', 'accepted', 'rejected', 'completed', 'canceled') DEFAULT 'pending', -- Booking status
+    notes TEXT, -- Optional notes from the parent (e.g., special instructions)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (childminder_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (child_id) REFERENCES children(id) ON DELETE CASCADE
+);
+
+
+#Matches
+CREATE TABLE matches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL, -- References the parent (user)
+    childminder_id INT NOT NULL, -- References the childminder (user)
+    match_score FLOAT NOT NULL, -- Compatibility score (e.g., 0 to 100)
+    status ENUM('pending', 'accepted', 'rejected', 'expired') DEFAULT 'pending', -- Match status
+    match_criteria JSON NOT NULL, -- Stores criteria used for the match (e.g., preferences, availability)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (childminder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+#Messages 
+
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id INT NOT NULL, -- References the conversation
+    sender_id INT NOT NULL, -- User who sends the message
+    receiver_id INT NOT NULL, -- User who receives the message
+    content TEXT NOT NULL, -- Message content
+    is_read BOOLEAN DEFAULT FALSE, -- Whether the receiver has read the message
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Time the message was sent
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE conversations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL, -- Parent user in the conversation
+    childminder_id INT NOT NULL, -- Childminder user in the conversation
+    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Timestamp of the last message
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (childminder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+#Subscriptions table 
+
+CREATE TABLE subscriptions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, -- References the user subscribing
+    stripe_subscription_id VARCHAR(255) NOT NULL, -- Stripe subscription ID
+    stripe_price_id VARCHAR(255) NOT NULL, -- Stripe price ID (monthly or yearly)
+    plan ENUM('monthly', 'yearly') NOT NULL, -- Subscription plan type
+    status ENUM('active', 'canceled', 'incomplete', 'past_due', 'unpaid') DEFAULT 'incomplete', -- Stripe subscription status
+    current_period_start DATE NOT NULL, -- Start date of the current billing period
+    current_period_end DATE NOT NULL, -- End date of the current billing period
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- When the subscription was created
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Last update to the subscription
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL, -- References the parent user who leaves the review
+    childminder_id INT NOT NULL, -- References the childminder being reviewed
+    rating INT CHECK (rating BETWEEN 1 AND 5) NOT NULL, -- Rating from 1 to 5
+    comment TEXT, -- Optional review comment
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (childminder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, -- References the user receiving the notification
+    message TEXT NOT NULL, -- Notification message content
+    is_read BOOLEAN DEFAULT FALSE, -- Read status of the notification
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
